@@ -16,6 +16,8 @@ function App() {
   const [coords, setCoords] = useState(null); // { lat, lon }
   const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState("");
+  const [locationInput, setLocationInput] = useState("");
+  const [isLoadingLocation, setIsLoadingLocation] = useState(false);
 
   // Game logic state
   const [board, setBoard] = useState(Array(9).fill(null));
@@ -56,6 +58,44 @@ function App() {
       setMapError("Geolocation not available – showing world map.");
     }
   }, [coords]);
+
+  // Handle location input submission
+  const handleLocationSubmit = async (e) => {
+    e.preventDefault();
+    if (!locationInput.trim()) return;
+
+    setIsLoadingLocation(true);
+    setMapError("");
+
+    try {
+      const API_KEY = process.env.REACT_APP_OPENWEATHERMAP_API_KEY;
+      if (!API_KEY) {
+        throw new Error("Missing OpenWeatherMap API key");
+      }
+
+      const response = await fetch(
+        `https://api.openweathermap.org/geo/1.0/direct?q=${encodeURIComponent(
+          locationInput
+        )}&limit=1&appid=${API_KEY}`
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch location coordinates");
+      }
+
+      const data = await response.json();
+      if (!data.length) {
+        throw new Error("Location not found");
+      }
+
+      const { lat, lon } = data[0];
+      setCoords({ lat, lon });
+    } catch (error) {
+      setMapError(error.message);
+    } finally {
+      setIsLoadingLocation(false);
+    }
+  };
 
   // Game logic: calculate status, winner, draw
   useEffect(() => {
@@ -302,6 +342,47 @@ function App() {
           Tic Tac Toe
         </span>
 
+        {/* Location Input Form */}
+        <form onSubmit={handleLocationSubmit} style={{
+          marginBottom: "20px",
+          display: "flex",
+          gap: "10px",
+          alignItems: "center",
+          justifyContent: "center"
+        }}>
+          <input
+            type="text"
+            value={locationInput}
+            onChange={(e) => setLocationInput(e.target.value)}
+            placeholder="Enter city name..."
+            style={{
+              padding: "8px 12px",
+              borderRadius: "8px",
+              border: "1px solid var(--border-color)",
+              background: "rgba(255,255,255,0.1)",
+              color: "#fff",
+              fontSize: "1rem",
+              width: "200px"
+            }}
+          />
+          <button
+            type="submit"
+            disabled={isLoadingLocation}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: "none",
+              background: "var(--button-bg)",
+              color: "#fff",
+              fontSize: "1rem",
+              cursor: isLoadingLocation ? "wait" : "pointer",
+              opacity: isLoadingLocation ? 0.7 : 1
+            }}
+          >
+            {isLoadingLocation ? "Loading..." : "Update Map"}
+          </button>
+        </form>
+
         <span className="subtitle" style={{
           fontSize: "1.1rem",
           color: "#c7ecff",
@@ -311,7 +392,7 @@ function App() {
           {mapError
             ? mapError
             : coords
-              ? `Weather map for your area`
+              ? `Weather map for ${locationInput || 'your area'}`
               : "Detecting location…"}
         </span>
 
